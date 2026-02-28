@@ -1,0 +1,1507 @@
+{
+  "name": "Telegram Broker Registration Bot with AI + Chatwoot + Human Takeover",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "3962d3ef-9c40-48a1-9bec-d9822781b0be",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -880,
+        144
+      ],
+      "webhookId": "telegram-broker-bot",
+      "credentials": {
+        "telegramApi": {
+          "id": "58OV9qKFo4QUtxpE",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.first().json;\nconst chatId = String(msg?.message?.chat?.id ?? msg?.message?.from?.id ?? '');\nconst text = msg?.message?.text ?? '';\nconst firstName = msg?.message?.from?.first_name ?? '';\nconst lastName = msg?.message?.from?.last_name ?? '';\nconst username = msg?.message?.from?.username ?? '';\nreturn [{ json: { chatId, text, firstName, lastName, username, fullName: `${firstName} ${lastName}`.trim(), rawMessage: msg } }];"
+      },
+      "id": "76e6fd62-3e5e-467f-8257-701c2e2a18f2",
+      "name": "Extract Message Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "17PWiV6yZXM-FSdK7hn_XMWK2T2V1_rsydUC8pWqK2eI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "HumanTakeover"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "chat_id",
+              "lookupValue": "={{ $json.chatId }}"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "id": "482eb41d-2918-4d54-bcd4-d9905fcb41da",
+      "name": "Check Human Takeover Flag",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -448,
+        144
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "uelKxrdyZYsujJFS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.takeover_active }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "be0f2ba2-105e-4081-a98f-5897c9f76fde"
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "61849066-e930-416f-bd6d-a88db9291b7c",
+      "name": "IF: Human Takeover Active?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://app.chatwoot.com/api/v1/accounts/153418/conversations/{{ $json.chatwoot_conversation_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "2Umory61NBRkACwr6eeCF2Jr"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $('Extract Message Fields').first().json.text }}"
+            },
+            {
+              "name": "message_type",
+              "value": "incoming"
+            },
+            {
+              "name": "private",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5436d91a-4163-4763-b4b7-99bc9f6fd3a2",
+      "name": "Mirror User Msg to Chatwoot (Takeover)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qgL7woJqagpP7JBa",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge incoming data with takeover flag row data\nconst msgData = $('Extract Message Fields').first().json;\nconst sheetRow = $('Check Human Takeover Flag').first().json;\nreturn [{\n  json: {\n    ...msgData,\n    takeover_active: sheetRow?.takeover_active === 'true',\n    chatwoot_conversation_id: sheetRow?.chatwoot_conversation_id ?? '',\n    chatwoot_contact_id: sheetRow?.chatwoot_contact_id ?? '',\n    current_status: sheetRow?.current_status ?? 'new'\n  }\n}];"
+      },
+      "id": "9e73c0d6-c09b-404d-af96-9d736c51d71b",
+      "name": "Merge Context Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://app.chatwoot.com/api/v1/accounts/153418/contacts/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "include_contacts",
+              "value": "true"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "=2Umory61NBRkACwr6eeCF2Jr"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "366344a7-7f37-42e4-a546-cb4d1c38d5be",
+      "name": "Search Chatwoot Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        320
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qgL7woJqagpP7JBa",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.meta?.count ?? 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              },
+              "id": "fe96af1c-55e1-4d3d-ae7f-4e6482f6acf0"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "eb184afb-1711-465e-baa3-f2ffe718a576",
+      "name": "IF: Contact Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://app.chatwoot.com/api/v1/accounts/153418/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "2Umory61NBRkACwr6eeCF2Jr"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $('Merge Context Data').first().json.fullName || 'Telegram User ' + $('Merge Context Data').first().json.chatId }}"
+            },
+            {
+              "name": "identifier",
+              "value": "=tg_{{ $('Merge Context Data').first().json.chatId }}"
+            },
+            {
+              "name": "additional_attributes",
+              "value": "={{ JSON.stringify({ telegram_chat_id: $('Merge Context Data').first().json.chatId, telegram_username: $('Merge Context Data').first().json.username }) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d829c14f-a7ee-482c-b9f6-27b2faa5c13e",
+      "name": "Create Chatwoot Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        208
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qgL7woJqagpP7JBa",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const mergedCtx = $('Merge Context Data').first().json;\nconst searched = $('Search Chatwoot Contact').first().json;\n\nconst contactId = searched?.payload?.[0]?.id ?? null;\nconst conversationId = mergedCtx.chatwoot_conversation_id || null;\n\nreturn [{ \n  json: { \n    ...mergedCtx, \n    contactId: String(contactId ?? ''), \n    conversationId: String(conversationId ?? '') \n  } \n}];"
+      },
+      "id": "2b19e259-238b-4cfb-8355-c06c305f2883",
+      "name": "Resolve Contact ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.conversationId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "f6e731a5-9ec6-4f45-a347-b20217cda7ef"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "049fc065-7ab4-4638-b7e4-c086b65cf55c",
+      "name": "IF: Conversation Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://app.chatwoot.com/api/v1/accounts/153418/conversations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "2Umory61NBRkACwr6eeCF2Jr"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contact_id",
+              "value": "={{ $('Resolve Contact ID').first().json.contactId }}"
+            },
+            {
+              "name": "inbox_id",
+              "value": "97523"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f78a2de0-c1ab-4de3-a2db-ec436c509c72",
+      "name": "Create Chatwoot Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1104,
+        208
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qgL7woJqagpP7JBa",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge final conversation ID\nconst ctx = $('Resolve Contact ID').first().json;\nlet convId = ctx.conversationId;\n\nif (!convId || convId === '') {\n  const created = $('Create Chatwoot Conversation').first().json;\n  convId = String(created?.id ?? '');\n}\n\nreturn [{ json: { ...ctx, conversationId: convId } }];"
+      },
+      "id": "ddfea585-4518-42a2-b528-45ec929fe45a",
+      "name": "Resolve Conversation ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://app.chatwoot.com/api/v1/accounts/153418/conversations/{{ $json.conversationId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "=2Umory61NBRkACwr6eeCF2Jr"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "message_type",
+              "value": "incoming"
+            },
+            {
+              "name": "private",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "938a8d38-4412-459b-9501-3e5eebb08470",
+      "name": "Mirror Incoming Msg to Chatwoot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1552,
+        320
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qgL7woJqagpP7JBa",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Resolve Conversation ID').first().json.text }}",
+        "options": {
+          "systemMessage": "=You are a broker registration assistant for EU Legal Bot. Your sole purpose is to guide users through the broker account registration process step by step. You are professional, neutral, clear, and fully compliant.\n\n--- KNOWLEDGE BASE START ---\n\n## USER CLASSIFICATION\nThe primary distinction is the user's country of TAX RESIDENCY.\n\nEU/EEA Residents: Tax residents of any of the 27 EU member states, OR Iceland, Liechtenstein, or Norway.\nNon-EU Residents: Tax residents of any country outside the EU/EEA.\n\nAsk these questions IN ORDER to classify the user:\n1. \"What is your country of tax residency?\" (most critical)\n2. \"In which country do you currently reside?\" (verification)\n3. \"What is your citizenship?\" (secondary, if needed)\n\n## EU REGISTRATION PATH (MiFID II applies)\nStep 1 - Broker & Account Selection: Confirm broker is EU-regulated and serves the user's country. Ask if they want a cash account (pay in full) or margin account (borrowing — higher risk).\nStep 2 - Suitability Assessment: User completes a questionnaire on investment knowledge, experience, financial situation, and risk tolerance. This is a MiFID II legal requirement.\nStep 3 - KYC Documents: Government-issued photo ID (passport or national ID), proof of address (utility bill or bank statement, max 3-6 months old), Tax Identification Number (TIN).\nStep 4 - Identity Verification: Automated document checks, sometimes a video call with a verification agent.\nStep 5 - Review & Sign Agreement: User reviews MiFID II disclosures (costs, charges, risks) and signs electronically.\nStep 6 - Fund Account: Via bank transfer or other approved methods.\n\nCommon EU friction points: document rejection (unclear photos, expired docs, old proof of address), verification delays, suitability questionnaire length.\n\n## NON-EU REGISTRATION PATH\nStep 1 - Broker & Account Selection: Select a broker that accepts clients from the user's country. Could be regulated in US, UK, Singapore, or offshore. Choose account type and currency.\nStep 2 - Personal & Financial Information: Provide personal details, financial info, and tax residency declaration.\nStep 3 - KYC Documents: Government-issued photo ID and proof of address. Offshore jurisdictions may require notarized copies or apostille stamp.\nStep 4 - Tax Documentation (US Brokers only): Non-US residents opening a US broker account must complete Form W-8BEN to certify foreign status and claim tax treaty benefits.\nStep 5 - Review & Sign Agreement: Less standardized than EU disclosures.\nStep 6 - Fund Account: Typically via international wire transfer.\n\nKey Non-EU differences: No single framework like MiFID II. Investor protection varies by jurisdiction. Tax implications (especially W-8BEN) are critical. May require notarization.\n\n## COMMON QUESTIONS & ANSWERS\nQ: How long does account opening take?\nA: Typically 1-3 business days after all documents are correctly submitted. Manual reviews can take longer.\n\nQ: What documents do I need?\nA: A valid government-issued photo ID (e.g. passport) and recent proof of address (utility bill or bank statement, last 3 months).\n\nQ: Why was my application rejected?\nA: Possible reasons include mismatched information, unclear documents, or regulatory restrictions. Check the broker's email. If unclear, contact their support team directly.\n\nQ: Cash account vs margin account?\nA: Cash account = pay for investments in full. Margin account = borrow from the broker to invest, increasing both potential returns and potential losses. Margin accounts are higher risk.\n\nQ: Is my money safe?\nA: Regulated brokers must segregate client funds. EU brokers also have investor compensation schemes. However, all investments carry risk and you can lose money.\n\n## ESCALATION TRIGGERS — YOU MUST ESCALATE IMMEDIATELY FOR:\n- Users from OFAC sanctioned countries (Iran, North Korea, Cuba, etc.)\n- Complex tax situations: dual citizenship, multiple tax residencies, or self-identified \"US Person\" residing abroad\n- Politically Exposed Persons (PEPs)\n- Users who mention a previous application rejection\n- Any request that resembles a request for investment advice or recommendations\n\n--- KNOWLEDGE BASE END ---\n\nROUTING RULES:\n- Once you confirm the user's tax residency, classify them and state clearly: \"You are being registered under the [EU/Non-EU] pathway.\"\n- Guide through steps one at a time — never dump all steps at once.\n- Ask for ONE piece of information per message.\n\nSTATUS TAGS — output exactly ONE at the end of every reply on its own line:\n[STATUS: IN_PROGRESS] — no region confirmed yet\n[STATUS: EU] — confirmed EU/EEA resident\n[STATUS: NON-EU] — confirmed Non-EU resident\n[STATUS: REGISTERED] — registration fully completed\n\nHUMAN ESCALATION — if you encounter any escalation trigger above, or anything outside your scope, output ONLY this on its own line and nothing after it:\nHUMAN_NEEDED: <one sentence reason>\n\nPROHIBITED — NEVER say:\n- \"You will make money\" or any guarantee of profit\n- \"This is a safe investment\" or anything minimising risk\n- \"You should buy X\" or any investment recommendation\n- Any price prediction\n\nMANDATORY DISCLAIMER — include this regularly:\n\"Please remember, this is not financial advice. I am an automated assistant here to guide you through registration. All investments involve risk.\"",
+          "maxIterations": 10
+        }
+      },
+      "id": "282c192d-104a-49ee-af25-a9fe2c3d99de",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1760,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Resolve Conversation ID').first().json.chatId }}",
+        "contextWindowLength": 20
+      },
+      "id": "a57a9e74-188e-41f5-80a7-908668ed70e0",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1856,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const agentOutput = $input.first().json.output ?? '';\nconst ctx = $('Resolve Conversation ID').first().json;\n\n// Check for human escalation signal\nconst humanNeededMatch = agentOutput.match(/HUMAN_NEEDED:\\s*(.+)/i);\nconst needsHuman = !!humanNeededMatch;\nconst escalationReason = humanNeededMatch ? humanNeededMatch[1].trim() : '';\n\n// Extract status tag\nconst statusMatch = agentOutput.match(/\\[STATUS:\\s*(EU|NON-EU|REGISTERED|IN_PROGRESS)\\]/i);\nconst statusTag = statusMatch ? statusMatch[1].toUpperCase().replace('-', '_') : 'IN_PROGRESS';\n\n// Clean reply (remove status tag and HUMAN_NEEDED line for user-facing message)\nconst cleanReply = agentOutput\n  .replace(/HUMAN_NEEDED:.*/gi, '')\n  .replace(/\\[STATUS:[^\\]]+\\]/gi, '')\n  .trim();\n\nreturn [{\n  json: {\n    ...ctx,\n    agentOutput,\n    cleanReply,\n    needsHuman,\n    escalationReason,\n    statusTag\n  }\n}];"
+      },
+      "id": "cd12c3c3-56d0-432a-8e94-76073e15bded",
+      "name": "Parse Agent Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://app.chatwoot.com/api/v1/accounts/153418/conversations/{{ $json.conversationId }}/labels",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "=2Umory61NBRkACwr6eeCF2Jr"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "labels",
+              "value": "={{ (() => { const tag = $json.statusTag; const labelMap = { EU: ['eu', 'in-progress'], NON_EU: ['non-eu', 'in-progress'], REGISTERED: ['registered'], IN_PROGRESS: ['in-progress'], NEEDS_HUMAN: ['needs-human'] }; return JSON.stringify(labelMap[tag] || ['in-progress']); })() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7b4bafa8-3b91-4910-a78b-c3aa96a2ca82",
+      "name": "Update Chatwoot Labels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2128,
+        144
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qgL7woJqagpP7JBa",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Agent Output').first().json.chatId }}",
+        "text": "={{ $('Parse Agent Output').first().json.cleanReply }}",
+        "additionalFields": {}
+      },
+      "id": "5dc8b72e-c88c-4452-bbaa-acab7cde11e9",
+      "name": "Send Telegram Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2464,
+        544
+      ],
+      "webhookId": "3eca3dff-9a1a-49ac-9b33-5c89db6c0e7f",
+      "credentials": {
+        "telegramApi": {
+          "id": "58OV9qKFo4QUtxpE",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://app.chatwoot.com/api/v1/accounts/153418/conversations/{{ $('Parse Agent Output').first().json.conversationId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "=2Umory61NBRkACwr6eeCF2Jr"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "=={{ $('Parse Agent Output').first().json.cleanReply }}"
+            },
+            {
+              "name": "message_type",
+              "value": "outgoing"
+            },
+            {
+              "name": "private",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dd799fe9-f42d-4dbe-8204-49beb041ba5b",
+      "name": "Mirror AI Reply to Chatwoot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2656,
+        528
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qgL7woJqagpP7JBa",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "17PWiV6yZXM-FSdK7hn_XMWK2T2V1_rsydUC8pWqK2eI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ConversationLog"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sender_type": "AI",
+            "message_content    ": "=={{ ' ' + $('Parse Agent Output').first().json.cleanReply }}",
+            "status_tag    ": "=={{ $('Parse Agent Output').first().json.statusTag.toLowerCase() }}",
+            "conversation_id": "=={{ $('Resolve Conversation ID').first().json.conversationId }}",
+            "chat_id  ": "=={{ $('Extract Message Fields').first().json.chatId }}",
+            "timestamp   ": "=={{ new Date().toISOString().replace('T', ' ').replace('Z', '') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp   ",
+              "displayName": "timestamp   ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chat_id  ",
+              "displayName": "chat_id  ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sender_type",
+              "displayName": "sender_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "message_content    ",
+              "displayName": "message_content    ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status_tag    ",
+              "displayName": "status_tag    ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "bce18e39-e1de-4c7b-b681-c610e6aba1c8",
+      "name": "Log AI Reply to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2816,
+        512
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "uelKxrdyZYsujJFS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "17PWiV6yZXM-FSdK7hn_XMWK2T2V1_rsydUC8pWqK2eI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ConversationLog"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp   ": "=={{ new Date().toISOString().replace('T', ' ').replace('Z', '') }}",
+            "chat_id  ": "=={{ $('Extract Message Fields').first().json.chatId }}",
+            "sender_type": "=USER",
+            "message_content    ": "=={{ ' ' + $('Extract Message Fields').first().json.text }}",
+            "status_tag    ": "in_progress",
+            "conversation_id": "=={{ $('Resolve Conversation ID').first().json.conversationId }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp   ",
+              "displayName": "timestamp   ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chat_id  ",
+              "displayName": "chat_id  ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sender_type",
+              "displayName": "sender_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "message_content    ",
+              "displayName": "message_content    ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status_tag    ",
+              "displayName": "status_tag    ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "6f35ce61-f9ca-452a-9330-c5e4bedf5893",
+      "name": "Log User Message to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1728,
+        656
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "uelKxrdyZYsujJFS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $('Parse Agent Output').first().json.needsHuman ? 0 : 1 }}"
+      },
+      "id": "ce3801d5-fe7a-4588-b2c5-518398ebc05a",
+      "name": "Route: Escalation or Normal",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2240,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://app.chatwoot.com/api/v1/accounts/153418/conversations/{{ $('Parse Agent Output').first().json.conversationId }}/labels",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "=2Umory61NBRkACwr6eeCF2Jr"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "labels",
+              "value": "[\"needs-human\"]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "99660f40-fbb4-483a-8dde-a4b35b744abc",
+      "name": "Flag Chatwoot for Human",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2432,
+        64
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "qgL7woJqagpP7JBa",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "17PWiV6yZXM-FSdK7hn_XMWK2T2V1_rsydUC8pWqK2eI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "HumanTakeover"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chat_id ": "=={{ $('Parse Agent Output').first().json.chatId }}",
+            "takeover_active ": "true",
+            "chatwoot_conversation_id   ": "=={{ $('Resolve Conversation ID').first().json.conversationId }}",
+            "chatwoot_contact_id    ": "=={{ $('Resolve Contact ID').first().json.contactId }}",
+            "current_status   ": "needs_human",
+            "updated_at": "=={{ new Date().toISOString().replace('T', ' ').replace('Z', '') }}"
+          },
+          "matchingColumns": [
+            "chat_id "
+          ],
+          "schema": [
+            {
+              "id": "chat_id ",
+              "displayName": "chat_id ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "takeover_active ",
+              "displayName": "takeover_active ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chatwoot_conversation_id   ",
+              "displayName": "chatwoot_conversation_id   ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chatwoot_contact_id    ",
+              "displayName": "chatwoot_contact_id    ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "current_status   ",
+              "displayName": "current_status   ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "payload",
+              "displayName": "payload",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "850772e3-fa6b-487f-b237-4313d69052d4",
+      "name": "Set Takeover Flag in Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2432,
+        208
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "uelKxrdyZYsujJFS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "I'm connecting you with a human agent who will be able to help you further. Please hold on — someone will be with you shortly.",
+        "additionalFields": {}
+      },
+      "id": "9dbae008-6bfc-4897-89b8-213e63dd6b6b",
+      "name": "Telegram: Escalation Notice",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2432,
+        368
+      ],
+      "webhookId": "88d1bdfb-4a33-4526-b4e9-cde59d75a726",
+      "credentials": {
+        "telegramApi": {
+          "id": "58OV9qKFo4QUtxpE",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatwoot-human-reply",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "00a88d81-edb5-47cc-9933-63e52770599e",
+      "name": "Chatwoot Webhook (Human Reply)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        640
+      ],
+      "webhookId": "chatwoot-human-reply"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body ?? $input.first().json;\n// Only process outgoing agent messages (human replies), not system or incoming\nconst isHumanReply = body?.event === 'message_created' && \n                     body?.message_type === 'outgoing' &&\n                     body?.content_attributes?.type !== 'ai';\nif (!isHumanReply) return [];\n\n// Extract telegram chat ID from conversation additional_attributes\nconst chatId = body?.conversation?.meta?.additional_attributes?.telegram_chat_id ||\n               body?.conversation?.additional_attributes?.telegram_chat_id ?? null;\nconst messageContent = body?.content ?? '';\nconst conversationId = String(body?.conversation?.id ?? '');\nconst agentName = body?.sender?.name ?? 'Support Agent';\n\nif (!chatId || !messageContent) return [];\n\nreturn [{ json: { chatId, messageContent, conversationId, agentName, rawBody: body } }];"
+      },
+      "id": "1f2998fe-ec8a-4e32-bc27-146d51af578c",
+      "name": "Filter & Extract Human Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.messageContent }}",
+        "additionalFields": {}
+      },
+      "id": "cb748e6b-c048-4809-a3fa-5d8b54b5c4e4",
+      "name": "Forward Human Reply via Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -448,
+        640
+      ],
+      "webhookId": "d52053d0-18be-4e3d-811c-d90bd1531145",
+      "credentials": {
+        "telegramApi": {
+          "id": "58OV9qKFo4QUtxpE",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "17PWiV6yZXM-FSdK7hn_XMWK2T2V1_rsydUC8pWqK2eI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "ConversationLog"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ new Date().toISOString() }}",
+            "chat_id": "={{ $json.chatId }}",
+            "sender_type": "HUMAN",
+            "message_content": "={{ $json.messageContent }}",
+            "status_tag": "needs_human",
+            "conversation_id": "={{ $json.conversationId }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "2d74933c-43c2-48d7-9d6e-a2f3ceabb94d",
+      "name": "Log Human Reply to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -224,
+        640
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "uelKxrdyZYsujJFS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"status\": \"ok\" }",
+        "options": {}
+      },
+      "id": "39a08ae6-5d57-40a8-baf6-3b8a11d8c343",
+      "name": "Chatwoot Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 4.5"
+        },
+        "options": {
+          "maxTokensToSample": 1000,
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        1760,
+        464
+      ],
+      "id": "7c5d6146-61f6-476f-89f9-cd4e4f4b5f4f",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "95G9yr5F0JqQ8EXc",
+          "name": "Anthropic account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Message Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message Fields": {
+      "main": [
+        [
+          {
+            "node": "Check Human Takeover Flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Human Takeover Flag": {
+      "main": [
+        [
+          {
+            "node": "IF: Human Takeover Active?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Human Takeover Active?": {
+      "main": [
+        [
+          {
+            "node": "Mirror User Msg to Chatwoot (Takeover)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Context Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Context Data": {
+      "main": [
+        [
+          {
+            "node": "Search Chatwoot Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Chatwoot Contact": {
+      "main": [
+        [
+          {
+            "node": "IF: Contact Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Contact Exists?": {
+      "main": [
+        [
+          {
+            "node": "Create Chatwoot Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resolve Contact ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Chatwoot Contact": {
+      "main": [
+        [
+          {
+            "node": "Resolve Contact ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Contact ID": {
+      "main": [
+        [
+          {
+            "node": "IF: Conversation Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Conversation Exists?": {
+      "main": [
+        [
+          {
+            "node": "Create Chatwoot Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resolve Conversation ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Chatwoot Conversation": {
+      "main": [
+        [
+          {
+            "node": "Resolve Conversation ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Conversation ID": {
+      "main": [
+        [
+          {
+            "node": "Mirror Incoming Msg to Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mirror Incoming Msg to Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "Log User Message to Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Agent Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Agent Output": {
+      "main": [
+        [
+          {
+            "node": "Update Chatwoot Labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Chatwoot Labels": {
+      "main": [
+        [
+          {
+            "node": "Route: Escalation or Normal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Escalation or Normal": {
+      "main": [
+        [
+          {
+            "node": "Flag Chatwoot for Human",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set Takeover Flag in Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram: Escalation Notice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram Reply": {
+      "main": [
+        [
+          {
+            "node": "Mirror AI Reply to Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mirror AI Reply to Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "Log AI Reply to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chatwoot Webhook (Human Reply)": {
+      "main": [
+        [
+          {
+            "node": "Filter & Extract Human Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter & Extract Human Reply": {
+      "main": [
+        [
+          {
+            "node": "Forward Human Reply via Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Forward Human Reply via Telegram": {
+      "main": [
+        [
+          {
+            "node": "Log Human Reply to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Human Reply to Sheets": {
+      "main": [
+        [
+          {
+            "node": "Chatwoot Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "1c97d2da-b508-44ec-a66c-a571f26bae28",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c2ee79beca0fa068f2fe6933c64d5f36fb3e3b84bc1dcfe10b2fa75f654dc10e"
+  },
+  "id": "F6mnruEE7NM399zR",
+  "tags": []
+}
